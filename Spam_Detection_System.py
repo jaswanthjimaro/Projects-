@@ -1,0 +1,199 @@
+import pandas as pd
+import re
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import metrics
+import joblib
+
+# Load dataset
+df = pd.read_csv(r"Dataset.csv", encoding='latin-1')
+print("================================================")
+print()
+print("Data Selection")
+print(df.head(10))
+print()
+
+#================= PREPROCESSING ================================
+
+#=== CHECKING MISSING VALUES ===
+
+print("====================================================")
+print()
+print("Checking Missing Values")
+print(df.isna().sum())
+print()
+
+#=== GROUPBY ===
+df.groupby('v1').describe()
+
+#=== LABEL ENCODING ===
+
+print()
+print("===================================================")
+print("Before Label Encoding")
+print()
+print(df['v1'].head(10))
+print()
+print("=======================================================")
+print()
+print("After Label Encoding")
+print()
+df['Spam']=df['v1'].apply(lambda x:1 if x=='spam' else 0)
+print(df['Spam'].head(10))
+print()
+
+#=== DROP UNWANTED COLUMNS ===
+
+df.drop('v1',axis=1, inplace=True)
+
+
+#======================== NLP TECHNIQUES ============================
+
+cleanup_re = re.compile('[^a-z]+')
+def cleanup(sentence):
+    sentence = str(sentence)
+    sentence = sentence.lower()
+    sentence = cleanup_re.sub(' ', sentence).strip()
+    return sentence
+
+
+df["Summary_Clean"] = df["v2"].apply(cleanup) 
+print("==============================================")
+print()
+print("Before applying NLP techniques")
+print()
+print(df["v2"].head(10))
+print()
+print("==============================================")
+print()
+print("After applying NLP techniques")
+print()
+print(df["Summary_Clean"].head(10))
+print()
+
+
+#======================= DATA SPLITTING ===========================
+
+X = df["v2"]
+y = df['Spam']
+X_train, X_test,y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+
+
+#================= VECTORIZATION ================================
+
+vector = CountVectorizer(stop_words = 'english', lowercase = True)
+
+#fitting the data
+training_data = vector.fit_transform(X_train)
+
+#tranform the test data
+testing_data = vector.transform(X_test)   
+
+
+
+#=================== CLASSIFICATION =================================
+
+#=== LOGISTIC REGRESSION ===
+
+print()
+print("Logistic Regression")
+print()
+
+#=== initialize the model ===
+logreg = LogisticRegression(solver='lbfgs' , C=0.5)
+
+#=== fitting the model ===
+logistic = logreg.fit(training_data, y_train)
+
+#=== Save the trained Logistic Regression model ===
+joblib.dump(logistic, 'logistic_regression_model.pkl')
+
+#=== Load the trained Logistic Regression model ===
+logistic = joblib.load('logistic_regression_model.pkl')
+
+#=== predict the model ===
+y_pred_lr = logistic.predict(testing_data)
+
+#=== PERFORMANCE ANALYSIS ===
+
+Accuracy_LR = (metrics.accuracy_score(y_pred_lr,y_test)) * 100
+print(" Accuracy :",Accuracy_LR,'%')
+print()
+print(metrics.classification_report(y_pred_lr,y_test))
+print()
+print("===========================================")
+
+
+#=== RANDOM FOREST ===
+
+print()
+print("Random forest")
+print()
+
+#=== initialize the model ===
+random = RandomForestClassifier(n_estimators = 950)
+
+#=== fitting the model ===
+random = random.fit(training_data, y_train)
+
+#=== Save the trained Random Forest model ===
+joblib.dump(random, 'random_forest_model.pkl')
+
+#=== Load the trained Random Forest model ===
+random = joblib.load('random_forest_model.pkl')
+
+#=== predict the model ===
+y_pred_rf = random.predict(testing_data)
+
+#=== PERFORMANCE ANALYSIS ===
+
+Accuracy_rf = (metrics.accuracy_score(y_pred_rf,y_test)) * 100
+print(" Accuracy :",Accuracy_rf,'%')
+print()
+print(metrics.classification_report(y_pred_rf,y_test))
+print()
+
+#================== ALGORITHM COMAPRISON =======================
+
+if(Accuracy_LR>Accuracy_rf):
+    print("********************************")
+    print()
+    print("Logistic regression is efficient")
+    print()
+    print("********************************")
+else:
+    print("********************************")
+    print()
+    print("  Random forest is efficient   ")
+    print()
+    print("********************************")
+
+#==================== PREDICTION ===============================
+
+def predict_message(message):
+    cleaned_message = cleanup(message)
+    message_vect = vector.transform([cleaned_message])
+    lr_prediction = logistic.predict(message_vect)
+    rf_prediction = random.predict(message_vect)
+    return lr_prediction[0], rf_prediction[0]
+
+def main():
+    print()
+    print("Welcome to Spam Detection System!")
+    while True:
+        message = input("Enter a message (type 'exit' to quit): ")
+        if message.lower() == 'exit':
+            print("Exiting...")
+            break
+        lr_pred, rf_pred = predict_message(message)
+        print("\nLogistic Regression Prediction:")
+        print("Ham" if lr_pred == 0 else "Spam")
+        print("\nRandom Forest Prediction:")
+        print("Ham" if rf_pred == 0 else "Spam")
+        print()
+
+if __name__ == "__main__":
+    main()
+
